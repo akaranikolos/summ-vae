@@ -6,6 +6,6 @@ from torchtext.data import Field, BucketIterator
 import numpy as np
 import spacy
 import random
-from utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 
