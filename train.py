@@ -54,8 +54,9 @@ def main(args):
 	enc = Encoder(input_dim, enc_emb_dim, hid_dim, enc_dropout)
 	dec = Decoder(output_dim, dec_emb_dim, hid_dim, dec_dropout, attn)
 	model = Seq2Seq(enc, dec, sos_idx, device).to(device)
-
-	optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    print(f'The model has {count_parameters(model):,} trainable parameters')
+    
+	optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 	pad_idx = TRG.vocab.stoi['<pad>']
 	criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
 	n_epochs = args.epochs

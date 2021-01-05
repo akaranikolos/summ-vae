@@ -7,8 +7,10 @@ import numpy as np
 import spacy
 import random
 from torch.utils.tensorboard import SummaryWriter
-
 spacy_eng = spacy.load('en')
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 def tokenize_src(text):
 	return [tok.text for tok in spacy_eng.tokenizer(text)][:100]
@@ -30,7 +32,7 @@ train_data, valid_data, test_data = TabularDataset.splits(
     fields = fields,
 )
 
-print(vars(train_data[0]))
+#print(vars(train_data[0]))
 SRC.build_vocab(train_data, max_size=30000, min_freq=2)
 TRG.build_vocab(train_data, max_size=30000, min_freq=2)
 
