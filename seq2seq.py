@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torchtext.datasets import TranslationDataset
+from torchtext.data import TabularDataset
 from torchtext.data import Field, BucketIterator
 import numpy as np
 import spacy
@@ -21,7 +21,7 @@ TRG = Field(tokenize=tokenize_trg, init_token='<sos>', eos_token='<eos>', lower=
 
 fields = {'trg': ('trg', TRG), 'src': ('src', SRC)}
 
-train_data, valid_data, test_data = torchtext.data.TabularDataset.splits(
+train_data, valid_data, test_data = TabularDataset.splits(
     path = 'data/gigaword',
     train = 'gigaword_test.json',
     validation = 'gigaword_test.json',
