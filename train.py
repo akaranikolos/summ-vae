@@ -73,6 +73,7 @@ def main(args):
         	torch.save(model.state_dict(), model_file_path)    
     	print(f'| Epoch: {epoch+1:03} | Train Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f} | Val. Loss: {valid_loss:.3f} | Val. PPL: {math.exp(valid_loss):7.3f}') 
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()   
     parser.add_argument('-ep', '--epochs', type=int, default=10)
