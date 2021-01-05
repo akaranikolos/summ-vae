@@ -9,28 +9,8 @@ from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 from collections import OrderedDict, defaultdict
 
-
-from ptb import PTB
-from utils import to_var, idx2word, expierment_name
+from utils import experiment_name
 from seq2seq import *
-
-INPUT_DIM = len(SRC.vocab)
-OUTPUT_DIM = len(TRG.vocab)
-ENC_EMB_DIM = 256
-DEC_EMB_DIM = 256
-HID_DIM = 512
-ENC_DROPOUT = 0.5
-DEC_DROPOUT = 0.5
-SOS_IDX = TRG.vocab.stoi['<sos>']
-
-attn = Attention(HID_DIM)
-enc = Encoder(INPUT_DIM, ENC_EMB_DIM, HID_DIM, ENC_DROPOUT)
-dec = Decoder(OUTPUT_DIM, DEC_EMB_DIM, HID_DIM, DEC_DROPOUT, attn)
-model = Seq2Seq(enc, dec, SOS_IDX, device).to(device)
-
-optimizer = optim.Adam(model.parameters(), lr=1e-3)
-pad_idx = TRG.vocab.stoi['<pad>']
-criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
 
 def train(model, iterator, optimizer, criterion, clip):    
     model.train()    
@@ -60,19 +40,49 @@ def evaluate(model, iterator, criterion):
     return epoch_loss / len(iterator)
 
 
-N_EPOCHS = 10
-CLIP = 1
-SAVE_DIR = 'models'
-MODEL_SAVE_PATH = os.path.join(SAVE_DIR, 'model.pt')
+def main(args):    
+    input_dim = len(SRC.vocab)
+	output_dim = len(TRG.vocab)
+	enc_emb_dim = args.embedding_size
+	dec_emb_dim = args.embedding_size
+	hid_dim = args.hidden_size
+	enc_dropout = args.embedding_dropout
+	dec_dropout = args.embedding_dropout
+	sos_idx = TRG.vocab.stoi['<sos>']
 
-best_valid_loss = float('inf')
-if not os.path.isdir(f'{SAVE_DIR}'):
-    os.makedirs(f'{SAVE_DIR}')
+	attn = Attention(hid_dim)
+	enc = Encoder(input_dim, enc_emb_dim, hid_dim, enc_dropout)
+	dec = Decoder(output_dim, dec_emb_dim, hid_dim, dec_dropout, attn)
+	model = Seq2Seq(enc, dec, sos_idx, device).to(device)
 
-for epoch in range(N_EPOCHS):    
-    train_loss = train(model, train_iterator, optimizer, criterion, CLIP)
-    valid_loss = evaluate(model, valid_iterator, criterion)    
-    if valid_loss < best_valid_loss:
-        best_valid_loss = valid_loss
-        torch.save(model.state_dict(), MODEL_SAVE_PATH)    
-    print(f'| Epoch: {epoch+1:03} | Train Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f} | Val. Loss: {valid_loss:.3f} | Val. PPL: {math.exp(valid_loss):7.3f} |
+	optimizer = optim.Adam(model.parameters(), lr=args.lr)
+	pad_idx = TRG.vocab.stoi['<pad>']
+	criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
+	n_epochs = args.ep
+	clip = 1
+	save_dir = args.save_model_path
+	model_file_path = os.path.join(save_dir, 'model.pt')
+	best_valid_loss = float('inf')
+	if not os.path.isdir(f'{save_dir}'):
+    	os.makedirs(f'{save_dir}')
+	for epoch in range(n_epochs):    
+    	train_loss = train(model, train_iterator, optimizer, criterion, clip)
+    	valid_loss = evaluate(model, valid_iterator, criterion)    
+    	if valid_loss < best_valid_loss:
+        	best_valid_loss = valid_loss
+        	torch.save(model.state_dict(), model_file_path)    
+    	print(f'| Epoch: {epoch+1:03} | Train Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f} | Val. Loss: {valid_loss:.3f} | Val. PPL: {math.exp(valid_loss):7.3f} |
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()   
+    parser.add_argument('-ep', '--epochs', type=int, default=10)
+    parser.add_argument('-lr', '--learning_rate', type=float, default=0.001)
+    parser.add_argument('-eb', '--embedding_size', type=int, default=300)
+    parser.add_argument('-hs', '--hidden_size', type=int, default=256)
+    parser.add_argument('-ed', '--embedding_dropout', type=float, default=0.5)
+    parser.add_argument('-tb', '--tensorboard_logging', action='store_true')
+    parser.add_argument('-log', '--logdir', type=str, default='logs')
+    parser.add_argument('-bin', '--save_model_path', type=str, default='bin')
+    args = parser.parse_args()    
+    main(args)
+

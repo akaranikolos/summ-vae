@@ -36,7 +36,7 @@ SRC.build_vocab(train_data, max_size=30000, min_freq=2)
 TRG.build_vocab(train_data, max_size=30000, min_freq=2)
 
 
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 train_iterator, valid_iterator, test_iterator = BucketIterator.splits(
@@ -201,137 +201,6 @@ class Seq2Seq(nn.Module):
             top1 = output.max(1)[1]
             output = (trg[t] if teacher_force else top1)            
         return outputs, attentions
-
-INPUT_DIM = len(SRC.vocab)
-OUTPUT_DIM = len(TRG.vocab)
-ENC_EMB_DIM = 256
-DEC_EMB_DIM = 256
-HID_DIM = 512
-ENC_DROPOUT = 0.5
-DEC_DROPOUT = 0.5
-SOS_IDX = TRG.vocab.stoi['<sos>']
-
-attn = Attention(HID_DIM)
-enc = Encoder(INPUT_DIM, ENC_EMB_DIM, HID_DIM, ENC_DROPOUT)
-dec = Decoder(OUTPUT_DIM, DEC_EMB_DIM, HID_DIM, DEC_DROPOUT, attn)
-model = Seq2Seq(enc, dec, SOS_IDX, device).to(device)
-
-optimizer = optim.Adam(model.parameters(), lr=1e-3)
-pad_idx = TRG.vocab.stoi['<pad>']
-criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
-
-def train(model, iterator, optimizer, criterion, clip):    
-    model.train()    
-    epoch_loss = 0    
-    for i, batch in enumerate(iterator):        
-        src, src_len = batch.src
-        trg = batch.trg        
-        optimizer.zero_grad()        
-        output, _ = model(src, src_len, trg)        
-        loss = criterion(output[1:].view(-1, output.shape[2]), trg[1:].view(-1))        
-        loss.backward()        
-        torch.nn.utils.clip_grad_norm_(model.parameters(), clip)        
-        optimizer.step()        
-        epoch_loss += loss.item()                
-    return epoch_loss / len(iterator)
-
-def evaluate(model, iterator, criterion):    
-    model.eval()    
-    epoch_loss = 0    
-    with torch.no_grad():    
-        for i, batch in enumerate(iterator):
-            src, src_len = batch.src
-            trg = batch.trg
-            output, _ = model(src, src_len, trg, 0) #turn off teacher forcing
-            loss = criterion(output[1:].view(-1, output.shape[2]), trg[1:].view(-1))
-            epoch_loss += loss.item()        
-    return epoch_loss / len(iterator)
-
-
-N_EPOCHS = 10
-CLIP = 1
-SAVE_DIR = 'models'
-MODEL_SAVE_PATH = os.path.join(SAVE_DIR, 'model.pt')
-
-best_valid_loss = float('inf')
-if not os.path.isdir(f'{SAVE_DIR}'):
-    os.makedirs(f'{SAVE_DIR}')
-
-for epoch in range(N_EPOCHS):    
-    train_loss = train(model, train_iterator, optimizer, criterion, CLIP)
-    valid_loss = evaluate(model, valid_iterator, criterion)    
-    if valid_loss < best_valid_loss:
-        best_valid_loss = valid_loss
-        torch.save(model.state_dict(), MODEL_SAVE_PATH)    
-    print(f'| Epoch: {epoch+1:03} | Train Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f} | Val. Loss: {valid_loss:.3f} | Val. PPL: {math.exp(valid_loss):7.3f} |
-
-
-model.load_state_dict(torch.load(os.path.join(MODEL_SAVE_PATH)))
-test_loss = evaluate(model, test_iterator, criterion)
-print(f'| Test Loss: {test_loss:.3f} | Test PPL: {math.exp(test_loss):7.3f} |')
-
-def translate_sentence(sentence):	
-    tokenized = tokenize_src(sentence) #
-    tokenized = ['<sos>'] + [t.lower() for t in tokenized] + ['<eos>'] 
-    numericalized = [SRC.vocab.stoi[t] for t in tokenized] 
-    sentence_length = torch.LongTensor([len(numericalized)]).to(device) #need sentence length for masking
-    tensor = torch.LongTensor(numericalized).unsqueeze(1).to(device) #convert to tensor and add batch dimension
-    translation_tensor_probs, attention = model(tensor, sentence_length, None, 0) #pass through model to get translation probabilities
-    translation_tensor = torch.argmax(translation_tensor_probs.squeeze(1), 1) #get translation from highest probabilities
-    translation = [TRG.vocab.itos[t] for t in translation_tensor][1:] #ignore the first token, just like we do in the training loop
-    return translation, attention[1:] #ignore first attention array
-
-
-
-def display_attention(candidate, translation, attention):
-    # Set up figure with colorbar
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    translation = translation[:translation.index('<eos>')] #cut translation after first <eos> token
-    attention = attention[:len(translation)].squeeze(1).cpu().detach().numpy() #cut attention to same length as translation
-    cax = ax.matshow(attention, cmap='bone')
-    fig.colorbar(cax)
-
-    # Set up axes
-    ax.set_xticklabels([''] + ['<sos>'] + [t.lower() for t in tokenize_src(candidate)] + ['<eos>'], rotation=90)
-    ax.set_yticklabels([''] + translation)
-
-    # Show label at every tick
-    ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
-    ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
-
-    plt.show()
-    plt.close()
-
-
-candidate = ' '.join(vars(train_data.examples[0])['src'])
-candidate_translation = ' '.join(vars(train_data.examples[0])['trg'])
-print(candidate)
-print(candidate_translation)
-
-translation, attention = translate_sentence(candidate)
-print(translation)
-
-display_attention(candidate, translation, attention)
-candidate = ' '.join(vars(valid_data.examples[0])['src'])
-candidate_translation = ' '.join(vars(valid_data.examples[0])['trg'])
-
-print(candidate)
-print(candidate_translation)
-
-translation, attention = translate_sentence(candidate)
-print(translation)
-display_attention(candidate, translation, attention)
-
-candidate = ' '.join(vars(test_data.examples[0])['src'])
-candidate_translation = ' '.join(vars(test_data.examples[0])['trg'])
-
-print(candidate)
-print(candidate_translation)
-translation, attention = translate_sentence(candidate)
-
-print(translation)
-display_attention(candidate, translation, attention)
 
 
 

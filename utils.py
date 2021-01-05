@@ -39,7 +39,7 @@ def interpolate(start, end, steps):
     return interpolation.T
 
 
-def expierment_name(args, ts):
+def experiment_name(args, ts):
     exp_name = str()
     exp_name += "BS=%i_" % args.batch_size
     exp_name += "LR={}_".format(args.learning_rate)
