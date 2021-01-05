@@ -58,7 +58,7 @@ def main(args):
 	optimizer = optim.Adam(model.parameters(), lr=args.lr)
 	pad_idx = TRG.vocab.stoi['<pad>']
 	criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
-	n_epochs = args.ep
+	n_epochs = args.epochs
 	clip = 1
 	save_dir = args.save_model_path
 	model_file_path = os.path.join(save_dir, 'model.pt')
