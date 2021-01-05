@@ -11,10 +11,10 @@ from torch.utils.tensorboard import SummaryWriter
 spacy_eng = spacy.load('en')
 
 def tokenize_src(text):
-	return [tok.text for tok in spacy_eng.tokenizer(text)][:500]
+	return [tok.text for tok in spacy_eng.tokenizer(text)][:100]
 
 def tokenize_trg(text):
-	return [tok.text for tok in spacy_eng.tokenizer(text)][:100]
+	return [tok.text for tok in spacy_eng.tokenizer(text)][:30]
 
 SRC = Field(tokenize=tokenize_src, init_token='<sos>', eos_token='<eos>', lower=True, include_lengths=True)
 TRG = Field(tokenize=tokenize_trg, init_token='<sos>', eos_token='<eos>', lower=True)
@@ -22,16 +22,15 @@ TRG = Field(tokenize=tokenize_trg, init_token='<sos>', eos_token='<eos>', lower=
 fields = {'trg': ('trg', TRG), 'src': ('src', SRC)}
 
 train_data, valid_data, test_data = torchtext.data.TabularDataset.splits(
-    path = 'data/cnndm',
-    train = 'cnndm_test.json',
-    validation = 'cnndm_test.json',
-    test = 'cnndm_test.json',
+    path = 'data/gigaword',
+    train = 'gigaword_test.json',
+    validation = 'gigaword_test.json',
+    test = 'gigaword_test.json',
     format = 'json',
     fields = fields,
 )
 
 print(vars(train_data[0]))
-
 SRC.build_vocab(train_data, max_size=30000, min_freq=2)
 TRG.build_vocab(train_data, max_size=30000, min_freq=2)
 
@@ -48,15 +47,15 @@ train_iterator, valid_iterator, test_iterator = BucketIterator.splits(
 
 
 class Encoder(nn.Module):
-    def __init__(self, input_dim, emb_dim, hid_dim, num_layers, p):
+    def __init__(self, input_dim, emb_dim, hid_dim, dropout):
         super().__init__()        
         self.input_dim = input_dim
         self.emb_dim = emb_dim
         self.hid_dim = hid_dim
         self.num_layers = num_layers
-        self.dropout = nn.Dropout(p)
+        self.dropout = nn.Dropout(dropout)
         self.embedding = nn.Embedding(input_dim, emb_dim)        
-        self.rnn = nn.LSTM(emb_dim, hid_dim, num_layers, dropout=p, bidirectional=True)        
+        self.rnn = nn.LSTM(emb_dim, hid_dim, num_layers, dropout=dropout, bidirectional=True)        
         self.fc_hid = nn.Linear(hid_dim * 2, hid_dim)
         self.fc_out = nn.Linear(hid_dim * 2, hid_dim)        
                 
