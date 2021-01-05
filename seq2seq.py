@@ -66,7 +66,7 @@ class Encoder(nn.Module):
         #src_len = [src sent len]        
         embedded = self.dropout(self.embedding(src))        
         #embedded = [src sent len, batch size, emb dim]        
-        packed_embedded = nn.utils.rnn.pack_padded_sequence(embedded, src_len)        
+        packed_embedded = nn.utils.rnn.pack_padded_sequence(embedded, src_len.cpu())        
         packed_outputs, (hidden, cell) = self.rnn(packed_embedded)               
         outputs, _ = nn.utils.rnn.pad_packed_sequence(packed_outputs)         
         #outputs = [sent len, batch size, hid dim * num directions]
