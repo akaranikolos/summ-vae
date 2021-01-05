@@ -40,7 +40,7 @@ def evaluate(model, iterator, criterion):
     return epoch_loss / len(iterator)
 
 
-def main(args):    
+def main(args):
     input_dim = len(SRC.vocab)
 	output_dim = len(TRG.vocab)
 	enc_emb_dim = args.embedding_size
