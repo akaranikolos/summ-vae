@@ -10,10 +10,10 @@ from torch.utils.tensorboard import SummaryWriter
 
 spacy_eng = spacy.load('en')
 
-def tokenizer_src(text):
-	return [tok.text for tok in spacy_ger.tokenizer(text)][:500]
+def tokenize_src(text):
+	return [tok.text for tok in spacy_eng.tokenizer(text)][:500]
 
-def tokenizer_trg(text):
+def tokenize_trg(text):
 	return [tok.text for tok in spacy_eng.tokenizer(text)][:100]
 
 SRC = Field(tokenize=tokenize_src, init_token='<sos>', eos_token='<eos>', lower=True, include_lengths=True)
@@ -48,27 +48,26 @@ train_iterator, valid_iterator, test_iterator = BucketIterator.splits(
 
 
 class Encoder(nn.Module):
-    def __init__(self, input_dim, emb_dim, hid_dim, dropout):
+    def __init__(self, input_dim, emb_dim, hid_dim, num_layers, p):
         super().__init__()        
         self.input_dim = input_dim
         self.emb_dim = emb_dim
         self.hid_dim = hid_dim
-        self.dropout = dropout        
+        self.num_layers = num_layers
+        self.dropout = nn.Dropout(p)
         self.embedding = nn.Embedding(input_dim, emb_dim)        
-        self.rnn = nn.GRU(emb_dim, hid_dim, bidirectional=True)        
+        self.rnn = nn.LSTM(emb_dim, hid_dim, num_layers, dropout=p, bidirectional=True)        
         self.fc_hid = nn.Linear(hid_dim * 2, hid_dim)
         self.fc_out = nn.Linear(hid_dim * 2, hid_dim)        
-        self.dropout = nn.Dropout(dropout)
-        
+                
     def forward(self, src, src_len):        
         #src = [src sent len, batch size]
         #src_len = [src sent len]        
         embedded = self.dropout(self.embedding(src))        
         #embedded = [src sent len, batch size, emb dim]        
         packed_embedded = nn.utils.rnn.pack_padded_sequence(embedded, src_len)        
-        packed_outputs, hidden = self.rnn(packed_embedded)               
+        packed_outputs, (hidden, cell) = self.rnn(packed_embedded)               
         outputs, _ = nn.utils.rnn.pad_packed_sequence(packed_outputs)         
-        outputs, hidden = self.rnn(embedded)           
         #outputs = [sent len, batch size, hid dim * num directions]
         #hidden = [n layers * num directions, batch size, hid dim]            
         outputs = self.fc_hid(outputs)            
@@ -216,4 +215,123 @@ attn = Attention(HID_DIM)
 enc = Encoder(INPUT_DIM, ENC_EMB_DIM, HID_DIM, ENC_DROPOUT)
 dec = Decoder(OUTPUT_DIM, DEC_EMB_DIM, HID_DIM, DEC_DROPOUT, attn)
 model = Seq2Seq(enc, dec, SOS_IDX, device).to(device)
+
+optimizer = optim.Adam(model.parameters(), lr=1e-3)
+pad_idx = TRG.vocab.stoi['<pad>']
+criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
+
+def train(model, iterator, optimizer, criterion, clip):    
+    model.train()    
+    epoch_loss = 0    
+    for i, batch in enumerate(iterator):        
+        src, src_len = batch.src
+        trg = batch.trg        
+        optimizer.zero_grad()        
+        output, _ = model(src, src_len, trg)        
+        loss = criterion(output[1:].view(-1, output.shape[2]), trg[1:].view(-1))        
+        loss.backward()        
+        torch.nn.utils.clip_grad_norm_(model.parameters(), clip)        
+        optimizer.step()        
+        epoch_loss += loss.item()                
+    return epoch_loss / len(iterator)
+
+def evaluate(model, iterator, criterion):    
+    model.eval()    
+    epoch_loss = 0    
+    with torch.no_grad():    
+        for i, batch in enumerate(iterator):
+            src, src_len = batch.src
+            trg = batch.trg
+            output, _ = model(src, src_len, trg, 0) #turn off teacher forcing
+            loss = criterion(output[1:].view(-1, output.shape[2]), trg[1:].view(-1))
+            epoch_loss += loss.item()        
+    return epoch_loss / len(iterator)
+
+
+N_EPOCHS = 10
+CLIP = 1
+SAVE_DIR = 'models'
+MODEL_SAVE_PATH = os.path.join(SAVE_DIR, 'model.pt')
+
+best_valid_loss = float('inf')
+if not os.path.isdir(f'{SAVE_DIR}'):
+    os.makedirs(f'{SAVE_DIR}')
+
+for epoch in range(N_EPOCHS):    
+    train_loss = train(model, train_iterator, optimizer, criterion, CLIP)
+    valid_loss = evaluate(model, valid_iterator, criterion)    
+    if valid_loss < best_valid_loss:
+        best_valid_loss = valid_loss
+        torch.save(model.state_dict(), MODEL_SAVE_PATH)    
+    print(f'| Epoch: {epoch+1:03} | Train Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f} | Val. Loss: {valid_loss:.3f} | Val. PPL: {math.exp(valid_loss):7.3f} |
+
+
+model.load_state_dict(torch.load(os.path.join(MODEL_SAVE_PATH)))
+test_loss = evaluate(model, test_iterator, criterion)
+print(f'| Test Loss: {test_loss:.3f} | Test PPL: {math.exp(test_loss):7.3f} |')
+
+def translate_sentence(sentence):	
+    tokenized = tokenize_src(sentence) #
+    tokenized = ['<sos>'] + [t.lower() for t in tokenized] + ['<eos>'] 
+    numericalized = [SRC.vocab.stoi[t] for t in tokenized] 
+    sentence_length = torch.LongTensor([len(numericalized)]).to(device) #need sentence length for masking
+    tensor = torch.LongTensor(numericalized).unsqueeze(1).to(device) #convert to tensor and add batch dimension
+    translation_tensor_probs, attention = model(tensor, sentence_length, None, 0) #pass through model to get translation probabilities
+    translation_tensor = torch.argmax(translation_tensor_probs.squeeze(1), 1) #get translation from highest probabilities
+    translation = [TRG.vocab.itos[t] for t in translation_tensor][1:] #ignore the first token, just like we do in the training loop
+    return translation, attention[1:] #ignore first attention array
+
+
+
+def display_attention(candidate, translation, attention):
+    # Set up figure with colorbar
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    translation = translation[:translation.index('<eos>')] #cut translation after first <eos> token
+    attention = attention[:len(translation)].squeeze(1).cpu().detach().numpy() #cut attention to same length as translation
+    cax = ax.matshow(attention, cmap='bone')
+    fig.colorbar(cax)
+
+    # Set up axes
+    ax.set_xticklabels([''] + ['<sos>'] + [t.lower() for t in tokenize_src(candidate)] + ['<eos>'], rotation=90)
+    ax.set_yticklabels([''] + translation)
+
+    # Show label at every tick
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+
+    plt.show()
+    plt.close()
+
+
+candidate = ' '.join(vars(train_data.examples[0])['src'])
+candidate_translation = ' '.join(vars(train_data.examples[0])['trg'])
+print(candidate)
+print(candidate_translation)
+
+translation, attention = translate_sentence(candidate)
+print(translation)
+
+display_attention(candidate, translation, attention)
+candidate = ' '.join(vars(valid_data.examples[0])['src'])
+candidate_translation = ' '.join(vars(valid_data.examples[0])['trg'])
+
+print(candidate)
+print(candidate_translation)
+
+translation, attention = translate_sentence(candidate)
+print(translation)
+display_attention(candidate, translation, attention)
+
+candidate = ' '.join(vars(test_data.examples[0])['src'])
+candidate_translation = ' '.join(vars(test_data.examples[0])['trg'])
+
+print(candidate)
+print(candidate_translation)
+translation, attention = translate_sentence(candidate)
+
+print(translation)
+display_attention(candidate, translation, attention)
+
+
 
