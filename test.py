@@ -2,6 +2,7 @@ import os
 import json
 import torch
 import argparse
+import math
 import matplotlib.pyplot as plt
 from seq2seq import *
 
@@ -105,6 +106,6 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--load_checkpoint', type=str)  
+    parser.add_argument('-c', '--load_checkpoint', type=str, default='bin/model.pt')  
     args = parser.parse_args()
     main(args)
