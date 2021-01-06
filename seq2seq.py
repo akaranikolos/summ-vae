@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 from torchtext.data import TabularDataset
 from torchtext.data import Field, BucketIterator
 import numpy as np
