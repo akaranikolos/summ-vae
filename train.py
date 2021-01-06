@@ -78,10 +78,10 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()   
-    parser.add_argument('-ep', '--epochs', type=int, default=10)
+    parser.add_argument('-ep', '--epochs', type=int, default=3)
     parser.add_argument('-lr', '--learning_rate', type=float, default=0.001)
-    parser.add_argument('-eb', '--embedding_size', type=int, default=300)
-    parser.add_argument('-hs', '--hidden_size', type=int, default=256)
+    parser.add_argument('-eb', '--embedding_size', type=int, default=200)
+    parser.add_argument('-hs', '--hidden_size', type=int, default=400)
     parser.add_argument('-ed', '--embedding_dropout', type=float, default=0.5)
     parser.add_argument('-tb', '--tensorboard_logging', action='store_true')
     parser.add_argument('-log', '--logdir', type=str, default='logs')
