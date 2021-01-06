@@ -25,9 +25,9 @@ fields = {'trg': ('trg', TRG), 'src': ('src', SRC)}
 
 train_data, valid_data, test_data = TabularDataset.splits(
     path = 'data/gigaword',
-    train = 'gigaword_test.json',
-    validation = 'gigaword_test.json',
-    test = 'gigaword_test.json',
+    train = 'train.json',
+    validation = 'valid.json',
+    test = 'test.json',
     format = 'json',
     fields = fields,
 )
