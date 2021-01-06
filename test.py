@@ -72,6 +72,7 @@ def main(args):
 
     model.load_state_dict(torch.load(args.load_checkpoint))
     print("Model loaded from %s" % args.load_checkpoint)
+    print(f'The model has {count_parameters(model):,} trainable parameters')
 
     if torch.cuda.is_available():
         model = model.cuda()
