@@ -108,5 +108,8 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--load_checkpoint', type=str, default='bin/model.pt')  
+    parser.add_argument('-hs', '--hidden_size', type=int, default=400)
+    parser.add_argument('-eb', '--embedding_size', type=int, default=200)
+    parser.add_argument('-ed', '--embedding_dropout', type=float, default=0.5)
     args = parser.parse_args()
     main(args)
