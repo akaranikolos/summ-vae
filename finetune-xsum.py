@@ -1,38 +1,35 @@
 from transformers import BertTokenizerFast
 from datasets import load_from_disk, load_metric
 
-gigaword = load_from_disk("dataset/gigaword")
-train_data = gigaword['train']
-valid_data = gigaword['validation']
-test_data = gigaword['test']
+cnndm = load_from_disk("dataset/xsum")
+train_data = cnndm['train']
+valid_data = cnndm['validation']
+test_data = cnndm['test']
 
 tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
 
 def map_to_length(x):
   x["article_len"] = len(tokenizer(x["document"]).input_ids)
-  x["article_longer_64"] = int(x["article_len"] > 64)
+  x["article_longer_512"] = int(x["article_len"] > tokenizer.model_max_length)
   x["summary_len"] = len(tokenizer(x["summary"]).input_ids)
-  x["summary_longer_16"] = int(x["summary_len"] > 16)
-  x["summary_longer_32"] = int(x["summary_len"] > 32)
+  x["summary_longer_64"] = int(x["summary_len"] > 64)
+  x["summary_longer_128"] = int(x["summary_len"] > 128)
   return x
 
-sample_size = 20000
+sample_size = 10000
 data_stats = train_data.select(range(sample_size)).map(map_to_length, num_proc=4)
 
 def compute_and_print_stats(x):
   if len(x["article_len"]) == sample_size:
     print(
-        "Article Mean: {}, %-Articles > 64:{}, Summary Mean:{}, %-Summary > 16:{}, %-Summary > 32:{}".format(
+        "Article Mean: {}, %-Articles > 512:{}, Summary Mean:{}, %-Summary > 64:{}, %-Summary > 128:{}".format(
             sum(x["article_len"]) / sample_size,
-            sum(x["article_longer_64"]) / sample_size, 
+            sum(x["article_longer_512"]) / sample_size, 
             sum(x["summary_len"]) / sample_size,
-            sum(x["summary_longer_16"]) / sample_size,
-            sum(x["summary_longer_32"]) / sample_size,
+            sum(x["summary_longer_64"]) / sample_size,
+            sum(x["summary_longer_128"]) / sample_size,
         )
     )
-
-#mean_article = 38.38
-#mean_summart = 11.56
 
 output = data_stats.map(
   compute_and_print_stats, 
@@ -40,8 +37,8 @@ output = data_stats.map(
   batch_size=-1,
 )
 
-encoder_max_length=64
-decoder_max_length=32
+encoder_max_length=512
+decoder_max_length=128
 
 def process_data_to_model_inputs(batch):
   # tokenize the inputs and labels
@@ -53,11 +50,9 @@ def process_data_to_model_inputs(batch):
   batch["decoder_input_ids"] = outputs.input_ids
   batch["decoder_attention_mask"] = outputs.attention_mask
   batch["labels"] = outputs.input_ids.copy()
-
   # because BERT automatically shifts the labels, the labels correspond exactly to `decoder_input_ids`. 
   # We have to make sure that the PAD token is ignored
   batch["labels"] = [[-100 if token == tokenizer.pad_token_id else token for token in labels] for labels in batch["labels"]]
-
   return batch
 
 batch_size = 16
@@ -66,7 +61,7 @@ train_data = train_data.map(
     process_data_to_model_inputs, 
     batched=True, 
     batch_size=batch_size, 
-    remove_columns=["document", "summary"]
+    remove_columns=["document", "summary", "id"]
 )
 train_data.set_format(type="torch", columns=["input_ids", "attention_mask", "decoder_input_ids", "decoder_attention_mask", "labels"])
 
@@ -74,7 +69,7 @@ valid_data = valid_data.map(
     process_data_to_model_inputs, 
     batched=True, 
     batch_size=batch_size, 
-    remove_columns=["document", "summary"]
+    remove_columns=["document", "summary", "id"]
 )
 valid_data.set_format(type="torch", columns=["input_ids", "attention_mask", "decoder_input_ids", "decoder_attention_mask", "labels"])
 
@@ -91,8 +86,8 @@ bert2bert.config.eos_token_id = tokenizer.sep_token_id
 bert2bert.config.pad_token_id = tokenizer.pad_token_id
 bert2bert.config.vocab_size = bert2bert.config.encoder.vocab_size
 
-bert2bert.config.max_length = 50
-bert2bert.config.min_length = 8
+bert2bert.config.max_length = 120
+bert2bert.config.min_length = 24
 bert2bert.config.no_repeat_ngram_size = 3
 bert2bert.config.early_stopping = True
 bert2bert.config.length_penalty = 2.0
@@ -107,7 +102,7 @@ training_args = Seq2SeqTrainingArguments(
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
     fp16=True, 
-    output_dir="./trainedgigaword/",
+    output_dir="./trainedxsum/",
     logging_steps=1000,
     save_steps=500,
     eval_steps=7500,

@@ -8,13 +8,13 @@ bert2bert.half()
 tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
 
 
-cnndm = load_from_disk("dataset/cnndm")
+cnndm = load_from_disk("dataset/gigaword")
 test_data = cnndm['test']
 rouge = load_metric("rouge")
 
 def generate_summary(batch):
     # cut off at BERT max length 64
-    inputs = tokenizer(batch["document"], padding="max_length", truncation=True, max_length=64, return_tensors="pt")
+    inputs = tokenizer(batch["document"], padding="max_length", truncation=True, max_length=32, return_tensors="pt")
     input_ids = inputs.input_ids.to("cuda")
     attention_mask = inputs.attention_mask.to("cuda")
 
@@ -25,7 +25,7 @@ def generate_summary(batch):
     return batch
 
 batch_size = 64  # change to 64 for full evaluation
-results = test_data.map(generate_summary, batched=True, batch_size=batch_size, remove_columns=["src"])
+results = test_data.map(generate_summary, batched=True, batch_size=batch_size, remove_columns=["document"])
 
 rouge1_output = rouge.compute(predictions=results["pred_summary"], references=results["summary"], rouge_types=["rouge1"])["rouge1"].mid
 print("rouge1_precision", round(rouge1_output.precision, 4))

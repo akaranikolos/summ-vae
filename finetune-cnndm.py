@@ -73,7 +73,7 @@ valid_data = valid_data.map(
     batch_size=batch_size, 
     remove_columns=["src", "trg"]
 )
-val_data.set_format(type="torch", columns=["input_ids", "attention_mask", "decoder_input_ids", "decoder_attention_mask", "labels"])
+valid_data.set_format(type="torch", columns=["input_ids", "attention_mask", "decoder_input_ids", "decoder_attention_mask", "labels"])
 
 from transformers import EncoderDecoderModel
 
