@@ -113,7 +113,7 @@ training_args = Seq2SeqTrainingArguments(
     save_total_limit=3,
 )
 
-rouge = datasets.load_metric("rouge")
+rouge = load_metric("rouge")
 
 def compute_metrics(pred):
     labels_ids = pred.label_ids
