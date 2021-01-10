@@ -53,14 +53,12 @@ def process_data_to_model_inputs(batch):
   batch["decoder_input_ids"] = outputs.input_ids
   batch["decoder_attention_mask"] = outputs.attention_mask
   batch["labels"] = outputs.input_ids.copy()
-
   # because BERT automatically shifts the labels, the labels correspond exactly to `decoder_input_ids`. 
   # We have to make sure that the PAD token is ignored
   batch["labels"] = [[-100 if token == tokenizer.pad_token_id else token for token in labels] for labels in batch["labels"]]
-
   return batch
 
-batch_size = 16
+batch_size = 32
 
 train_data = train_data.map(
     process_data_to_model_inputs, 
