@@ -10,10 +10,10 @@ tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
 
 def map_to_length(x):
   x["article_len"] = len(tokenizer(x["document"]).input_ids)
-  x["article_longer_512"] = int(x["article_len"] > tokenizer.model_max_length)
+  x["article_longer_64"] = int(x["article_len"] > 64)
   x["summary_len"] = len(tokenizer(x["summary"]).input_ids)
+  x["summary_longer_16"] = int(x["summary_len"] > 16)
   x["summary_longer_32"] = int(x["summary_len"] > 32)
-  x["summary_longer_64"] = int(x["summary_len"] > 64)
   return x
 
 sample_size = 20000
@@ -22,12 +22,12 @@ data_stats = train_data.select(range(sample_size)).map(map_to_length, num_proc=4
 def compute_and_print_stats(x):
   if len(x["article_len"]) == sample_size:
     print(
-        "Article Mean: {}, %-Articles > 512:{}, Summary Mean:{}, %-Summary > 32:{}, %-Summary > 64:{}".format(
+        "Article Mean: {}, %-Articles > 64:{}, Summary Mean:{}, %-Summary > 16:{}, %-Summary > 32:{}".format(
             sum(x["article_len"]) / sample_size,
-            sum(x["article_longer_512"]) / sample_size, 
+            sum(x["article_longer_64"]) / sample_size, 
             sum(x["summary_len"]) / sample_size,
+            sum(x["summary_longer_16"]) / sample_size,
             sum(x["summary_longer_32"]) / sample_size,
-            sum(x["summary_longer_64"]) / sample_size,
         )
     )
 
@@ -37,7 +37,7 @@ output = data_stats.map(
   batch_size=-1,
 )
 
-encoder_max_length=128
+encoder_max_length=64
 decoder_max_length=32
 
 def process_data_to_model_inputs(batch):
